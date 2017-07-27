@@ -29,11 +29,15 @@ import org.jetbrains.kotlin.diagnostics.Diagnostic
 import org.jetbrains.kotlin.diagnostics.DiagnosticFactory
 import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.idea.caches.resolve.getResolutionFacade
-import org.jetbrains.kotlin.idea.codeInliner.*
+import org.jetbrains.kotlin.idea.codeInliner.CallableUsageReplacementStrategy
+import org.jetbrains.kotlin.idea.codeInliner.ClassUsageReplacementStrategy
+import org.jetbrains.kotlin.idea.codeInliner.UsageReplacementStrategy
 import org.jetbrains.kotlin.idea.core.OptionalParametersHelper
 import org.jetbrains.kotlin.idea.quickfix.KotlinQuickFixAction
-import org.jetbrains.kotlin.idea.quickfix.replacement.PatternAnnotation
-import org.jetbrains.kotlin.idea.quickfix.replacement.PatternAnnotationAnalyzer
+import org.jetbrains.kotlin.idea.quickfix.replacement.PatternAnnotationData
+import org.jetbrains.kotlin.idea.quickfix.replacement.analyzeAsExpression
+import org.jetbrains.kotlin.idea.quickfix.replacement.analyzeAsUserType
+import org.jetbrains.kotlin.idea.quickfix.replacement.toCodeToInline
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.idea.references.resolveMainReferenceToDescriptors
 import org.jetbrains.kotlin.idea.search.restrictToKotlinSources
@@ -56,19 +60,19 @@ import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 
 abstract class DeprecatedSymbolUsageFixBase(
         element: KtSimpleNameExpression,
-        val annotation: PatternAnnotation
+        val annotationData: PatternAnnotationData
 ) : KotlinQuickFixAction<KtSimpleNameExpression>(element) {
 
     override fun isAvailable(project: Project, editor: Editor?, file: KtFile): Boolean {
         val element = element ?: return false
-        val strategy = buildUsageReplacementStrategy(element, annotation, recheckAnnotation = true, reformat = false)
+        val strategy = buildUsageReplacementStrategy(element, annotationData, recheckAnnotation = true, reformat = false)
         return strategy?.createReplacer(element) != null
     }
 
     final override fun invoke(project: Project, editor: Editor?, file: KtFile) {
         val element = element ?: return
         val strategy = buildUsageReplacementStrategy(
-            element, annotation, recheckAnnotation = false, reformat = true, editor = editor
+            element, annotationData, recheckAnnotation = false, reformat = true, editor = editor
         ) ?: return
         invoke(strategy, project, editor)
     }
@@ -76,7 +80,7 @@ abstract class DeprecatedSymbolUsageFixBase(
     protected abstract fun invoke(replacementStrategy: UsageReplacementStrategy, project: Project, editor: Editor?)
 
     companion object {
-        fun fetchReplaceWithPattern(descriptor: DeclarationDescriptor, project: Project): PatternAnnotation? {
+        fun fetchReplaceWithPattern(descriptor: DeclarationDescriptor, project: Project): PatternAnnotationData? {
             val annotation = descriptor.annotations.findAnnotation(KotlinBuiltIns.FQ_NAMES.deprecated) ?: return null
             val replaceWithValue =
                 annotation.argumentValue(kotlin.Deprecated::replaceWith.name)?.safeAs<AnnotationValue>()?.value ?: return null
@@ -92,12 +96,12 @@ abstract class DeprecatedSymbolUsageFixBase(
                 }
             ) return null
 
-            return PatternAnnotation(pattern, imports)
+            return PatternAnnotationData(pattern, imports)
         }
 
         data class Data(
                 val nameExpression: KtSimpleNameExpression,
-                val annotation: PatternAnnotation,
+                val annotationData: PatternAnnotationData,
                 val descriptor: DeclarationDescriptor
         )
 
@@ -126,7 +130,7 @@ abstract class DeprecatedSymbolUsageFixBase(
 
         private fun buildUsageReplacementStrategy(
             element: KtSimpleNameExpression,
-            annotation: PatternAnnotation,
+            annotationData: PatternAnnotationData,
             recheckAnnotation: Boolean,
             reformat: Boolean,
             editor: Editor? = null
@@ -142,20 +146,20 @@ abstract class DeprecatedSymbolUsageFixBase(
             }
 
             // check that ReplaceWith hasn't changed
-            if (recheckAnnotation && replacePatternFromSymbol != annotation) return null
+            if (recheckAnnotation && replacePatternFromSymbol != annotationData) return null
 
             when (target) {
                 is CallableDescriptor -> {
                     val resolvedCall = element.getResolvedCall(bindingContext) ?: return null
                     if (!resolvedCall.isReallySuccess()) return null
-                    val replacement = PatternAnnotationAnalyzer.analyzeCallableReplacement(
-                        annotation, target, resolutionFacade, reformat
-                    ) ?: return null
+                    val replacement = annotationData
+                                              .analyzeAsExpression(target, resolutionFacade)
+                                              ?.toCodeToInline(target, resolutionFacade, reformat) ?: return null
                     return CallableUsageReplacementStrategy(replacement, inlineSetter = false)
                 }
 
                 is ClassifierDescriptorWithTypeParameters -> {
-                    val replacementType = PatternAnnotationAnalyzer.analyzeClassifierReplacement(annotation, target, resolutionFacade)
+                    val replacementType = annotationData.analyzeAsUserType(target, resolutionFacade)
                     return when {
                         replacementType != null -> {
                             if (editor != null) {
@@ -188,12 +192,9 @@ abstract class DeprecatedSymbolUsageFixBase(
 
                         target is ClassDescriptor -> {
                             val constructor = target.unsubstitutedPrimaryConstructor ?: return null
-                            val replacementExpression = PatternAnnotationAnalyzer.analyzeCallableReplacement(
-                                annotation,
-                                constructor,
-                                resolutionFacade,
-                                reformat
-                            ) ?: return null
+                            val replacementExpression = annotationData
+                                                                .analyzeAsExpression(constructor, resolutionFacade)
+                                                                ?.toCodeToInline(constructor, resolutionFacade, reformat) ?: return null
                             ClassUsageReplacementStrategy(null, replacementExpression, element.project)
                         }
 

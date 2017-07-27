@@ -26,19 +26,19 @@ import org.jetbrains.kotlin.idea.core.moveCaret
 import org.jetbrains.kotlin.idea.core.targetDescriptors
 import org.jetbrains.kotlin.idea.quickfix.CleanupFix
 import org.jetbrains.kotlin.idea.quickfix.KotlinSingleIntentionActionFactory
-import org.jetbrains.kotlin.idea.quickfix.replacement.PatternAnnotation
+import org.jetbrains.kotlin.idea.quickfix.replacement.PatternAnnotationData
 import org.jetbrains.kotlin.psi.KtImportDirective
 import org.jetbrains.kotlin.psi.KtSimpleNameExpression
 import org.jetbrains.kotlin.resolve.calls.callUtil.getCalleeExpressionIfAny
 
 class DeprecatedSymbolUsageFix(
         element: KtSimpleNameExpression,
-        annotation: PatternAnnotation
-) : DeprecatedSymbolUsageFixBase(element, annotation), CleanupFix, HighPriorityAction {
+        annotationData: PatternAnnotationData
+) : DeprecatedSymbolUsageFixBase(element, annotationData), CleanupFix, HighPriorityAction {
 
     override fun getFamilyName() = "Replace deprecated symbol usage"
 
-    override fun getText() = "Replace with '${annotation.pattern}'"
+    override fun getText() = "Replace with '${annotationData.pattern}'"
 
     override fun invoke(replacementStrategy: UsageReplacementStrategy, project: Project, editor: Editor?) {
         val element = element ?: return
