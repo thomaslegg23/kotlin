@@ -40,6 +40,7 @@ import org.jetbrains.kotlin.config.*
 import org.jetbrains.kotlin.extensions.ProjectExtensionDescriptor
 import org.jetbrains.kotlin.gradle.ArgsInfo
 import org.jetbrains.kotlin.gradle.CompilerArgumentsBySourceSet
+import org.jetbrains.kotlin.idea.core.script.ScriptDependenciesModificationTracker
 import org.jetbrains.kotlin.idea.compiler.configuration.KotlinCommonCompilerArgumentsHolder
 import org.jetbrains.kotlin.idea.configuration.GradlePropertiesFileFacade.Companion.KOTLIN_CODE_STYLE_GRADLE_SETTING
 import org.jetbrains.kotlin.idea.facet.*
@@ -59,6 +60,7 @@ import org.jetbrains.kotlin.platform.impl.isJvm
 import org.jetbrains.kotlin.psi.UserDataProperty
 import org.jetbrains.plugins.gradle.model.data.BuildScriptClasspathData
 import org.jetbrains.plugins.gradle.model.data.GradleSourceSetData
+import org.jetbrains.plugins.gradle.service.project.GradleBuildSrcProjectsResolver
 import org.jetbrains.plugins.gradle.util.GradleConstants
 import java.io.File
 import java.util.*
@@ -68,6 +70,9 @@ var Module.compilerArgumentsBySourceSet
 
 var Module.sourceSetName
         by UserDataProperty(Key.create<String>("SOURCE_SET_NAME"))
+
+var Module.buildSrcModuleProperty
+        by UserDataProperty(Key.create("IS_BUILD_SRC_MODULE"))
 
 interface GradleProjectImportHandler {
     companion object : ProjectExtensionDescriptor<GradleProjectImportHandler>(
@@ -254,6 +259,12 @@ fun configureFacetByGradleModule(
 ): KotlinFacet? {
     if (moduleNode.kotlinSourceSet != null) return null // Suppress in the presence of new MPP model
     if (!moduleNode.isResolved) return null
+
+    val isBuildSrcModule = moduleNode.data.getProperty(GradleBuildSrcProjectsResolver.BUILD_SRC_MODULE_PROPERTY)?.toBoolean()
+    if (isBuildSrcModule != ideModule.buildSrcModuleProperty) {
+        ideModule.buildSrcModuleProperty = isBuildSrcModule
+        ScriptDependenciesModificationTracker.getInstance(ideModule.project).incModificationCount()
+    }
 
     if (!moduleNode.hasKotlinPlugin) {
         val facetModel = modelsProvider.getModifiableFacetModel(ideModule)
