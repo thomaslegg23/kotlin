@@ -65,6 +65,8 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.util.*
 
+const val EVALUATOR_GENERATED_FUNCTION_NAME = "generated_for_debugger_fun"
+
 fun generateIsCheck(
     v: InstructionAdapter,
     kotlinType: KotlinType,

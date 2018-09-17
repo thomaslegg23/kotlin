@@ -90,7 +90,6 @@ import java.util.*
 internal val RECEIVER_NAME = "\$receiver"
 internal val THIS_NAME = "this"
 internal val LOG = Logger.getInstance("#org.jetbrains.kotlin.idea.debugger.evaluate.KotlinEvaluator")
-internal val GENERATED_FUNCTION_NAME = "generated_for_debugger_fun"
 internal val GENERATED_CLASS_NAME = "Generated_for_debugger_class"
 
 private val DEBUG_MODE = false
@@ -308,7 +307,7 @@ class KotlinEvaluator(val codeFragment: KtCodeFragment, val sourcePosition: Sour
 
             ClassReader(mainClassBytecode).accept(object : ClassVisitor(ASM5) {
                 override fun visitMethod(access: Int, name: String, desc: String, signature: String?, exceptions: Array<out String>?): MethodVisitor? {
-                    if (name == GENERATED_FUNCTION_NAME) {
+                    if (name == EVALUATOR_GENERATED_FUNCTION_NAME) {
                         val argumentTypes = Type.getArgumentTypes(desc)
                         val args = context.getArgumentsForEval4j(compiledData.parameters, argumentTypes)
 
@@ -334,7 +333,7 @@ class KotlinEvaluator(val codeFragment: KtCodeFragment, val sourcePosition: Sour
                 }
             }, 0)
 
-            return resultValue ?: throw IllegalStateException("resultValue is null: cannot find method " + GENERATED_FUNCTION_NAME)
+            return resultValue ?: throw IllegalStateException("resultValue is null: cannot find method " + EVALUATOR_GENERATED_FUNCTION_NAME)
         }
 
         private inline fun <T> VirtualMachine.executeWithBreakpointsDisabled(block: () -> T): T {

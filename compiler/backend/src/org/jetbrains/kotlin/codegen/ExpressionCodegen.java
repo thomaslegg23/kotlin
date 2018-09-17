@@ -90,9 +90,11 @@ import org.jetbrains.org.objectweb.asm.commons.Method;
 
 import java.util.*;
 
+import static org.jetbrains.kotlin.builtins.KotlinBuiltIns.getFunctionName;
 import static org.jetbrains.kotlin.builtins.KotlinBuiltIns.isInt;
 import static org.jetbrains.kotlin.codegen.AsmUtil.*;
 import static org.jetbrains.kotlin.codegen.CodegenUtilKt.*;
+import static org.jetbrains.kotlin.codegen.CodegenUtilKt.EVALUATOR_GENERATED_FUNCTION_NAME;
 import static org.jetbrains.kotlin.codegen.JvmCodegenUtil.*;
 import static org.jetbrains.kotlin.codegen.binding.CodegenBinding.*;
 import static org.jetbrains.kotlin.codegen.inline.InlineCodegenUtilsKt.*;
@@ -2020,6 +2022,19 @@ public class ExpressionCodegen extends KtVisitor<StackValue, StackValue> impleme
         return accessor == null || accessor.isDefault();
     }
 
+    private boolean isEvaluatorCodeFragment() {
+        if (context.getParentContext() instanceof PackageContext) {
+            FunctionDescriptor functionDescriptor = context.getFunctionDescriptor();
+            if (functionDescriptor.getVisibility() == Visibilities.PRIVATE
+                && functionDescriptor.getName().asString().equals(EVALUATOR_GENERATED_FUNCTION_NAME)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public StackValue.Property intermediateValueForProperty(
             @NotNull PropertyDescriptor propertyDescriptor,
             boolean forceField,
@@ -2049,7 +2064,7 @@ public class ExpressionCodegen extends KtVisitor<StackValue, StackValue> impleme
                  (forceField ||
                   (Visibilities.isPrivate(propertyDescriptor.getVisibility()) &&
                    isDefaultAccessor(propertyDescriptor.getGetter()) && isDefaultAccessor(propertyDescriptor.getSetter())))) {
-            fieldAccessorKind = AccessorKind.IN_CLASS_COMPANION;
+            fieldAccessorKind = isEvaluatorCodeFragment() ? AccessorKind.NORMAL : AccessorKind.IN_CLASS_COMPANION;
         }
         else if ((syntheticBackingField &&
                   context.getFirstCrossInlineOrNonInlineContext().getParentContext().getContextDescriptor() != containingDeclaration)) {

@@ -25,6 +25,7 @@ import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.util.ExceptionUtil
+import org.jetbrains.kotlin.codegen.EVALUATOR_GENERATED_FUNCTION_NAME
 import org.jetbrains.kotlin.idea.caches.resolve.analyzeWithContent
 import org.jetbrains.kotlin.idea.codeInsight.CodeInsightUtils
 import org.jetbrains.kotlin.idea.core.replaced
@@ -111,7 +112,7 @@ fun getFunctionForExtractedFragment(
             }
 
             val generatorOptions = ExtractionGeneratorOptions(inTempFile = true,
-                                                              dummyName = GENERATED_FUNCTION_NAME,
+                                                              dummyName = EVALUATOR_GENERATED_FUNCTION_NAME,
                                                               allowExpressionBody = false)
             return ExtractionGeneratorConfiguration(validationResult.descriptor, generatorOptions).generateDeclaration()
         } finally {
