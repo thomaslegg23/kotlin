@@ -14,7 +14,7 @@ dependencies {
     testCompile(project(":kotlin-test:kotlin-test-jvm"))
     testCompile(project(":kotlin-test:kotlin-test-junit"))
     testCompile(commonDep("junit:junit"))
-    testCompileOnly(intellijCoreDep()) { includeJars("intellij-core") }
+    testCompile(intellijCoreDep()) { includeJars("intellij-core") }
     testRuntime(intellijDep()) { includeJars("trove4j", "util") }
 }
 
