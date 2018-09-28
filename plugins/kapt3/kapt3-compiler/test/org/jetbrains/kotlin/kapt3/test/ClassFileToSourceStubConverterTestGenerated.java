@@ -129,6 +129,11 @@ public class ClassFileToSourceStubConverterTestGenerated extends AbstractClassFi
         runTest("plugins/kapt3/kapt3-compiler/testData/converter/ignoredMembers.kt");
     }
 
+    @TestMetadata("implicitReturnTypes.kt")
+    public void testImplicitReturnTypes() throws Exception {
+        runTest("plugins/kapt3/kapt3-compiler/testData/converter/implicitReturnTypes.kt");
+    }
+
     @TestMetadata("importsForErrorTypes.kt")
     public void testImportsForErrorTypes() throws Exception {
         runTest("plugins/kapt3/kapt3-compiler/testData/converter/importsForErrorTypes.kt");
@@ -242,6 +247,11 @@ public class ClassFileToSourceStubConverterTestGenerated extends AbstractClassFi
     @TestMetadata("kt25071.kt")
     public void testKt25071() throws Exception {
         runTest("plugins/kapt3/kapt3-compiler/testData/converter/kt25071.kt");
+    }
+
+    @TestMetadata("kt27126.kt")
+    public void testKt27126() throws Exception {
+        runTest("plugins/kapt3/kapt3-compiler/testData/converter/kt27126.kt");
     }
 
     @TestMetadata("leadingDollars.kt")

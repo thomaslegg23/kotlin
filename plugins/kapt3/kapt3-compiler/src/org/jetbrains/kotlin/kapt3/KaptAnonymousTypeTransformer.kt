@@ -11,13 +11,11 @@ import org.jetbrains.kotlin.descriptors.DeclarationDescriptorWithVisibility
 import org.jetbrains.kotlin.resolve.DeclarationSignatureAnonymousTypeTransformer
 import org.jetbrains.kotlin.resolve.DescriptorUtils
 import org.jetbrains.kotlin.resolve.DescriptorUtils.isAnonymousObject
-import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
-import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassNotAny
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeProjectionImpl
 import org.jetbrains.kotlin.types.replace
 import org.jetbrains.kotlin.types.typeUtil.builtIns
-import org.jetbrains.kotlin.types.typeUtil.isAnyOrNullableAny
+import org.jetbrains.kotlin.types.typeUtil.supertypes
 
 class KaptAnonymousTypeTransformer : DeclarationSignatureAnonymousTypeTransformer {
     override fun transformAnonymousType(descriptor: DeclarationDescriptorWithVisibility, type: KotlinType): KotlinType? {
@@ -41,7 +39,10 @@ class KaptAnonymousTypeTransformer : DeclarationSignatureAnonymousTypeTransforme
         }
 
         val actualType = when {
-            isAnonymousObject(declaration) -> findMostSuitableParentForAnonymousType(declaration)
+            isAnonymousObject(declaration) -> {
+                val possiblyAnonymousSupertype = type.supertypes().firstOrNull() ?: return type.builtIns.anyType
+                convertPossiblyAnonymousType(possiblyAnonymousSupertype)
+            }
             else -> type
         }
 
@@ -55,19 +56,5 @@ class KaptAnonymousTypeTransformer : DeclarationSignatureAnonymousTypeTransforme
         }
 
         return actualType.replace(newArguments = arguments)
-    }
-
-    private fun findMostSuitableParentForAnonymousType(descriptor: ClassDescriptor): KotlinType {
-        descriptor.getSuperClassNotAny()?.let { return it.defaultType }
-
-        val sortedSuperTypes = descriptor.typeConstructor.supertypes
-            .sortedBy { it.constructor.declarationDescriptor?.name?.asString() ?: "" }
-
-        for (candidate in sortedSuperTypes) {
-            if (!candidate.isAnyOrNullableAny())
-                return candidate
-        }
-
-        return descriptor.builtIns.anyType
     }
 }

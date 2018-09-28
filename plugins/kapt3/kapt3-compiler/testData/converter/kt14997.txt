@@ -28,7 +28,7 @@ public final class Kt14997Kt {
     }
 
     @org.jetbrains.annotations.NotNull()
-    public static final java.lang.Runnable b() {
+    public static final java.io.Serializable b() {
         return null;
     }
 
