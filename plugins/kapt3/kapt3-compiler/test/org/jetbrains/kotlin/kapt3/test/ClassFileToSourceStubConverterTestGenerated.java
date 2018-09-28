@@ -109,6 +109,11 @@ public class ClassFileToSourceStubConverterTestGenerated extends AbstractClassFi
         runTest("plugins/kapt3/kapt3-compiler/testData/converter/functions.kt");
     }
 
+    @TestMetadata("genericParameters.kt")
+    public void testGenericParameters() throws Exception {
+        runTest("plugins/kapt3/kapt3-compiler/testData/converter/genericParameters.kt");
+    }
+
     @TestMetadata("genericRawSignatures.kt")
     public void testGenericRawSignatures() throws Exception {
         runTest("plugins/kapt3/kapt3-compiler/testData/converter/genericRawSignatures.kt");
