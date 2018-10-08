@@ -66,27 +66,26 @@ class IDELightClassGenerationSupport(private val project: Project) : LightClassG
             return null
         }
 
-        return KtUltraLightClass(element, this::createSupport)
-    }
-
-    private fun createSupport(element: KtClassOrObject): UltraLightSupport? {
         val module = ModuleUtilCore.findModuleForPsiElement(element) ?: return null
-        val facet = KotlinFacet.get(module)
-        val pluginClasspath = facet?.configuration?.settings?.compilerArguments?.pluginClasspaths
-        if (!pluginClasspath.isNullOrEmpty()) {
-            LOG.debug { "Using heavy light classes for ${element.fqName?.asString()} because of compiler plugins $pluginClasspath" }
-            return null
-        }
+        return KtUltraLightClass(element, object : UltraLightSupport {
+            override fun isTooComplexForUltraLightGeneration(element: KtClassOrObject): Boolean {
+                val facet = KotlinFacet.get(module)
+                val pluginClasspath = facet?.configuration?.settings?.compilerArguments?.pluginClasspaths
+                if (!pluginClasspath.isNullOrEmpty()) {
+                    LOG.debug { "Using heavy light classes for ${element.fqName?.asString()} because of compiler plugins $pluginClasspath" }
+                    return true
+                }
 
-        val problem = findTooComplexDeclaration(element)
-        if (problem != null) {
-            LOG.debug {
-                "Using heavy light classes for ${element.fqName?.asString()} because of ${StringUtil.trimLog(problem.text, 100)}"
+                val problem = findTooComplexDeclaration(element)
+                if (problem != null) {
+                    LOG.debug {
+                        "Using heavy light classes for ${element.fqName?.asString()} because of ${StringUtil.trimLog(problem.text, 100)}"
+                    }
+                    return true
+                }
+                return false
             }
-            return null
-        }
 
-        return object : UltraLightSupport {
             override val moduleName: String = module.name
 
             override fun findAnnotation(owner: KtAnnotated, fqName: FqName): AnnotationDescriptor? = owner
@@ -94,7 +93,7 @@ class IDELightClassGenerationSupport(private val project: Project) : LightClassG
                 .filter { it.shortName == fqName.shortName() || hasAlias(owner, fqName.shortName()) }
                 .mapNotNull { analyze(it).get(BindingContext.ANNOTATION, it) }
                 .find { it.fqName == fqName }
-        }
+        })
     }
 
     private fun findTooComplexDeclaration(declaration: KtDeclaration): PsiElement? {

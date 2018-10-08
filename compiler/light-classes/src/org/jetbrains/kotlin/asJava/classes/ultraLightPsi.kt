@@ -43,11 +43,11 @@ import org.jetbrains.kotlin.resolve.jvm.annotations.VOLATILE_ANNOTATION_FQ_NAME
 import org.jetbrains.kotlin.resolve.jvm.diagnostics.JvmDeclarationOriginKind
 import org.jetbrains.kotlin.types.KotlinType
 
-class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport: (KtClassOrObject) -> UltraLightSupport?) :
+class KtUltraLightClass(classOrObject: KtClassOrObject, private val support: UltraLightSupport) :
     KtLightClassImpl(classOrObject) {
-    private val support: UltraLightSupport? by lazyPub { calcSupport(classOrObject) }
+    private val tooComplex: Boolean by lazyPub { support.isTooComplexForUltraLightGeneration(classOrObject) }
 
-    override fun isFinal(isFinalByPsi: Boolean) = if (support == null) super.isFinal(isFinalByPsi) else isFinalByPsi
+    override fun isFinal(isFinalByPsi: Boolean) = if (tooComplex) super.isFinal(isFinalByPsi) else isFinalByPsi
 
     @Volatile
     @VisibleForTesting
@@ -56,17 +56,17 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
     override fun findLightClassData(): LightClassData = super.findLightClassData().also {
         if (!isClsDelegateLoaded) {
             isClsDelegateLoaded = true
-            check(support == null) { "Cls delegate shouldn't be loaded for not too complex ultra-light classes!" }
+            check(tooComplex) { "Cls delegate shouldn't be loaded for not too complex ultra-light classes!" }
         }
     }
 
     private fun allSuperTypes() =
         getDescriptor()?.typeConstructor?.supertypes?.mapNotNull {
-            it.asPsiType(classOrObject, support!!, TypeMappingMode.SUPER_TYPE) as? PsiClassType
+            it.asPsiType(classOrObject, support, TypeMappingMode.SUPER_TYPE) as? PsiClassType
         }.orEmpty()
 
     override fun createExtendsList(): PsiReferenceList? =
-        if (support == null) super.createExtendsList()
+        if (tooComplex) super.createExtendsList()
         else LightReferenceListBuilder(manager, language, PsiReferenceList.Role.EXTENDS_LIST).also { list ->
             allSuperTypes()
                 .filter { (isInterface || it.resolve()?.isInterface == false) && !it.equalsToText(CommonClassNames.JAVA_LANG_OBJECT) }
@@ -74,7 +74,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
         }
 
     override fun createImplementsList(): PsiReferenceList? =
-        if (support == null) super.createImplementsList()
+        if (tooComplex) super.createImplementsList()
         else LightReferenceListBuilder(manager, language, PsiReferenceList.Role.IMPLEMENTS_LIST).also { list ->
             if (!isInterface) {
                 allSuperTypes()
@@ -84,7 +84,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
         }
 
     override fun buildTypeParameterList(): PsiTypeParameterList =
-        if (support == null) super.buildTypeParameterList() else buildTypeParameterList(classOrObject, this, support!!)
+        if (tooComplex) super.buildTypeParameterList() else buildTypeParameterList(classOrObject, this, support)
 
     // the following logic should be in the platform (super), overrides can be removed once that happens
     override fun getInterfaces(): Array<PsiClass> = PsiClassImplUtil.getInterfaces(this)
@@ -116,7 +116,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
             if (!parameter.isMutable) {
                 modifiers.add(PsiModifier.FINAL)
             }
-            result.add(KtUltraLightField(parameter, generateUniqueName(parameter.name.orEmpty()), this, support!!, modifiers))
+            result.add(KtUltraLightField(parameter, generateUniqueName(parameter.name.orEmpty()), this, support, modifiers))
         }
 
         this.classOrObject.companionObjects.firstOrNull()?.let { companion ->
@@ -125,7 +125,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
                     companion,
                     generateUniqueName(companion.name.orEmpty()),
                     this,
-                    support!!,
+                    support,
                     setOf(PsiModifier.STATIC, PsiModifier.FINAL, simpleVisibility(companion))
                 )
             )
@@ -151,7 +151,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
                     this.classOrObject,
                     JvmAbi.INSTANCE_FIELD,
                     this,
-                    support!!,
+                    support,
                     setOf(PsiModifier.STATIC, PsiModifier.FINAL, PsiModifier.PUBLIC)
                 )
             )
@@ -183,7 +183,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
             modifiers.add(PsiModifier.STATIC)
         }
 
-        return KtUltraLightField(property, fieldName, this, support!!, modifiers)
+        return KtUltraLightField(property, fieldName, this, support, modifiers)
     }
 
     private fun hasBackingField(property: KtProperty): Boolean {
@@ -195,7 +195,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
         return descriptor is PropertyDescriptor && context[BindingContext.BACKING_FIELD_REQUIRED, descriptor] == true
     }
 
-    override fun getOwnFields(): List<KtLightField> = if (support == null) super.getOwnFields() else _ownFields
+    override fun getOwnFields(): List<KtLightField> = if (tooComplex) super.getOwnFields() else _ownFields
 
     private fun propertyParameters() = classOrObject.primaryConstructorParameters.filter { it.hasValOrVar() }
 
@@ -264,27 +264,27 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
     private fun noArgConstructor(visibility: String, declaration: KtDeclaration): KtUltraLightMethod = KtUltraLightMethod(
         LightMethodBuilder(manager, language, name.orEmpty()).setConstructor(true).addModifier(visibility),
         declaration,
-        support!!,
+        support,
         this
     )
 
     private fun isHiddenByDeprecation(declaration: KtDeclaration): Boolean {
-        val deprecated = support!!.findAnnotation(declaration, FqName("kotlin.Deprecated"))
+        val deprecated = support.findAnnotation(declaration, FqName("kotlin.Deprecated"))
         return (deprecated?.argumentValue("level") as? EnumValue)?.enumEntryName?.asString() == "HIDDEN"
     }
 
     private fun isJvmStatic(declaration: KtAnnotated): Boolean = declaration.hasAnnotation(JVM_STATIC_ANNOTATION_FQ_NAME)
 
-    override fun getOwnMethods(): List<KtLightMethod> = if (support == null) super.getOwnMethods() else _ownMethods
+    override fun getOwnMethods(): List<KtLightMethod> = if (tooComplex) super.getOwnMethods() else _ownMethods
 
     private fun asJavaMethod(f: KtFunction, forceStatic: Boolean): KtLightMethod {
         val isConstructor = f is KtConstructor<*>
         val name = if (isConstructor) this.name else mangleIfNeeded(listOf(f), f.name ?: SpecialNames.NO_NAME_PROVIDED.asString())
         val method = lightMethod(name.orEmpty(), listOf(f), forceStatic)
-        val wrapper = KtUltraLightMethod(method, f, support!!, this)
+        val wrapper = KtUltraLightMethod(method, f, support, this)
         addReceiverParameter(f, wrapper)
         for (parameter in f.valueParameters) {
-            method.addParameter(KtUltraLightParameter(parameter.name.orEmpty(), parameter, support!!, wrapper, null))
+            method.addParameter(KtUltraLightParameter(parameter.name.orEmpty(), parameter, support, wrapper, null))
         }
         val returnType: PsiType? by lazyPub {
             if (isConstructor) null
@@ -297,7 +297,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
     private fun addReceiverParameter(f: KtDeclaration, method: KtUltraLightMethod) {
         val receiver = (f as? KtCallableDeclaration)?.receiverTypeReference
         if (receiver != null) {
-            method.delegate.addParameter(KtUltraLightParameter("\$self", f, support!!, method, receiver))
+            method.delegate.addParameter(KtUltraLightParameter("\$self", f, support, method, receiver))
         }
     }
 
@@ -305,10 +305,10 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
         val desc = f.resolve()?.let { if (it is PropertyDescriptor) it.getter else it }
         val kotlinType = (desc as? FunctionDescriptor)?.returnType ?: return PsiType.NULL
         val mode = when {
-            typeMapper(support!!).forceBoxedReturnType(desc) -> TypeMappingMode.RETURN_TYPE_BOXED
+            typeMapper(support).forceBoxedReturnType(desc) -> TypeMappingMode.RETURN_TYPE_BOXED
             else -> TypeMappingMode.getOptimalModeForReturnType(kotlinType, false)
         }
-        return kotlinType.asPsiType(f, support!!, mode)
+        return kotlinType.asPsiType(f, support, mode)
     }
 
     private fun lightMethod(name: String, decls: List<KtDeclaration>, forceStatic: Boolean): LightMethodBuilder = LightMethodBuilder(
@@ -355,13 +355,13 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
                 return name
             }
             if (isInternal(declaration) && declaration.resolve()?.isPublishedApi() != true) {
-                return KotlinTypeMapper.InternalNameMapper.mangleInternalName(name, support!!.moduleName)
+                return KotlinTypeMapper.InternalNameMapper.mangleInternalName(name, support.moduleName)
             }
         }
         return name
     }
 
-    private fun KtAnnotated.hasAnnotation(name: FqName) = support!!.findAnnotation(this, name) != null
+    private fun KtAnnotated.hasAnnotation(name: FqName) = support.findAnnotation(this, name) != null
 
     private fun isInternal(f: KtDeclaration): Boolean {
         if (f.hasModifier(OVERRIDE_KEYWORD)) {
@@ -401,7 +401,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
             val getterType: PsiType by lazyPub { methodReturnType(declaration) }
             val getterPrototype = lightMethod(getterName, listOfNotNull(declaration, ktGetter), onlyJvmStatic)
                 .setMethodReturnType { getterType }
-            val getterWrapper = KtUltraLightMethod(getterPrototype, declaration, support!!, this)
+            val getterWrapper = KtUltraLightMethod(getterPrototype, declaration, support, this)
             addReceiverParameter(declaration, getterWrapper)
             result.add(getterWrapper)
         }
@@ -410,10 +410,10 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
             val setterName = mangleIfNeeded(listOfNotNull(ktSetter, declaration), JvmAbi.setterName(propertyName))
             val setterPrototype = lightMethod(setterName, listOfNotNull(declaration, ktSetter), onlyJvmStatic)
                 .setMethodReturnType(PsiType.VOID)
-            val setterWrapper = KtUltraLightMethod(setterPrototype, declaration, support!!, this)
+            val setterWrapper = KtUltraLightMethod(setterPrototype, declaration, support, this)
             addReceiverParameter(declaration, setterWrapper)
             val parameterOrigin = ktSetter?.parameter ?: declaration
-            setterPrototype.addParameter(KtUltraLightParameter(propertyName, parameterOrigin, support!!, setterWrapper, null))
+            setterPrototype.addParameter(KtUltraLightParameter(propertyName, parameterOrigin, support, setterWrapper, null))
             result.add(setterWrapper)
         }
         return result
@@ -430,12 +430,12 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
     override fun getInitializers(): Array<PsiClassInitializer> = emptyArray()
 
     override fun getContainingClass(): PsiClass? =
-        if (support == null) super.getContainingClass() else classOrObject.containingClass()?.let(KtLightClassForSourceDeclaration::create)
+        if (tooComplex) super.getContainingClass() else classOrObject.containingClass()?.let(KtLightClassForSourceDeclaration::create)
 
-    override fun getParent(): PsiElement? = if (support == null) super.getParent() else containingClass ?: containingFile
+    override fun getParent(): PsiElement? = if (tooComplex) super.getParent() else containingClass ?: containingFile
 
-    override fun getScope(): PsiElement? = if (support == null) super.getScope() else parent
-    override fun copy(): KtLightClassImpl = KtUltraLightClass(classOrObject.copy() as KtClassOrObject, calcSupport)
+    override fun getScope(): PsiElement? = if (tooComplex) super.getScope() else parent
+    override fun copy(): KtLightClassImpl = KtUltraLightClass(classOrObject.copy() as KtClassOrObject, support)
 }
 
 private class KtUltraLightField(
@@ -617,4 +617,5 @@ internal class KtUltraLightParameter(
 interface UltraLightSupport {
     val moduleName: String
     fun findAnnotation(owner: KtAnnotated, fqName: FqName): AnnotationDescriptor?
+    fun isTooComplexForUltraLightGeneration(element: KtClassOrObject): Boolean
 }
