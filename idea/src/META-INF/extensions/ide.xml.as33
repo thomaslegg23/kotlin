@@ -34,6 +34,10 @@
                         interface="org.jetbrains.kotlin.platform.IdePlatformKind"/>
         <extensionPoint qualifiedName="org.jetbrains.kotlin.idePlatformKindTooling"
                         interface="org.jetbrains.kotlin.idea.platform.IdePlatformKindTooling"/>
+
+        <extensionPoint qualifiedName="org.jetbrains.kotlin.scriptDefinitionsProvider"
+                        interface="kotlin.script.experimental.intellij.ScriptDefinitionsProvider"
+                        area="IDEA_PROJECT"/>
     </extensionPoints>
 
     <extensions defaultExtensionNs="org.jetbrains.kotlin">
@@ -43,6 +47,10 @@
         <scriptDefinitionContributor
             id="ScriptTemplatesFromCompilerSettingsProvider"
             implementation="org.jetbrains.kotlin.idea.script.ScriptTemplatesFromCompilerSettingsProvider"/>
+
+        <scriptDefinitionContributor
+            id="BridgeScriptDefinitionsContributor"
+            implementation="org.jetbrains.kotlin.scripting.idea.plugin.BridgeScriptDefinitionsContributor"/>
 
         <scriptDefinitionContributor
             id="ScriptTemplatesFromDependenciesProvider"
