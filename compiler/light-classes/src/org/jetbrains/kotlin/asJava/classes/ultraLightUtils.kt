@@ -44,7 +44,8 @@ internal fun buildTypeParameterList(
                 if (ktParam.extendsBound != null || declaration.typeConstraints.isNotEmpty()) {
                     val boundTypes = (ktParam.resolve() as? TypeParameterDescriptor)?.upperBounds.orEmpty()
                         .mapNotNull { it.asPsiType(ktParam, support, TypeMappingMode.DEFAULT, this) as? PsiClassType }
-                    if (!(boundTypes.size == 1 && boundTypes[0].equalsToText(CommonClassNames.JAVA_LANG_OBJECT))) {
+                    val hasDefaultBound = boundTypes.size == 1 && boundTypes[0].equalsToText(CommonClassNames.JAVA_LANG_OBJECT)
+                    if (!hasDefaultBound) {
                         boundTypes.forEach(boundList::addReference)
                     }
                 }

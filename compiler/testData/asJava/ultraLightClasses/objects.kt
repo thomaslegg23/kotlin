@@ -13,6 +13,7 @@ class C {
             get() = "OK"
             @JvmStatic set(t: String) {}
     }
+    companion object Factory {}
 }
 
 class C1 {

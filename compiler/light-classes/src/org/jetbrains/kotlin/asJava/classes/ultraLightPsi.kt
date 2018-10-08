@@ -30,6 +30,7 @@ import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.SpecialNames
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.containingClass
+import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.annotations.JVM_STATIC_ANNOTATION_FQ_NAME
 import org.jetbrains.kotlin.resolve.annotations.argumentValue
 import org.jetbrains.kotlin.resolve.constants.EnumValue
@@ -162,7 +163,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
     private fun isNamedObject() = classOrObject is KtObjectDeclaration && !classOrObject.isCompanion()
 
     private fun propertyField(property: KtProperty, generateUniqueName: (String) -> String, forceStatic: Boolean): KtLightField? {
-        if (!hasBackingField(property, forceStatic)) return null
+        if (!hasBackingField(property)) return null
 
         val hasDelegate = property.hasDelegate()
         val fieldName = generateUniqueName((property.name ?: "") + (if (hasDelegate) "\$delegate" else ""))
@@ -185,10 +186,13 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
         return KtUltraLightField(property, fieldName, this, support!!, modifiers)
     }
 
-    private fun hasBackingField(property: KtProperty, forceStatic: Boolean): Boolean {
+    private fun hasBackingField(property: KtProperty): Boolean {
         if (property.hasModifier(ABSTRACT_KEYWORD)) return false
         if (property.hasModifier(LATEINIT_KEYWORD) || property.accessors.isEmpty()) return true
-        return property.initializer != null && (!forceStatic || property.isVar)
+
+        val context = LightClassGenerationSupport.getInstance(project).analyze(property)
+        val descriptor = context.get(BindingContext.DECLARATION_TO_DESCRIPTOR, property)
+        return descriptor is PropertyDescriptor && context[BindingContext.BACKING_FIELD_REQUIRED, descriptor] == true
     }
 
     override fun getOwnFields(): List<KtLightField> = if (support == null) super.getOwnFields() else _ownFields
@@ -227,7 +231,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val calcSupport:
         if (constructors.isEmpty()) {
             result.add(defaultConstructor())
         }
-        for (constructor in constructors) {
+        for (constructor in constructors.filterNot { isHiddenByDeprecation(it) }) {
             result.add(asJavaMethod(constructor, false))
         }
         val primary = classOrObject.primaryConstructor
@@ -439,7 +443,7 @@ private class KtUltraLightField(
     name: String,
     private val containingClass: KtUltraLightClass,
     private val support: UltraLightSupport,
-    val modifiers: Set<String>
+    modifiers: Set<String>
 ) : LightFieldBuilder(name, PsiType.NULL, declaration), KtLightField {
     private val modList = object : KtLightSimpleModifierList(this, modifiers) {
         override fun hasModifierProperty(name: String): Boolean = when (name) {
