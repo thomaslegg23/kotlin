@@ -280,7 +280,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val support: Ult
     private fun asJavaMethod(f: KtFunction, forceStatic: Boolean): KtLightMethod {
         val isConstructor = f is KtConstructor<*>
         val name = if (isConstructor) this.name else mangleIfNeeded(listOf(f), f.name ?: SpecialNames.NO_NAME_PROVIDED.asString())
-        val method = lightMethod(name.orEmpty(), listOf(f), forceStatic)
+        val method = lightMethod(name.orEmpty(), f, forceStatic)
         val wrapper = KtUltraLightMethod(method, f, support, this)
         addReceiverParameter(f, wrapper)
         for (parameter in f.valueParameters) {
@@ -311,40 +311,49 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val support: Ult
         return kotlinType.asPsiType(f, support, mode)
     }
 
-    private fun lightMethod(name: String, decls: List<KtDeclaration>, forceStatic: Boolean): LightMethodBuilder = LightMethodBuilder(
-        manager, language, name,
-        LightParameterListBuilder(manager, language),
-        object : LightModifierList(manager, language) {
-            override fun hasModifierProperty(name: String): Boolean {
-                if (name == PsiModifier.PUBLIC || name == PsiModifier.PROTECTED || name == PsiModifier.PRIVATE) {
-                    if (decls.any { isPrivate(it) }) return name == PsiModifier.PRIVATE
-                    if (decls.any { it.hasModifier(PROTECTED_KEYWORD) }) return name == PsiModifier.PROTECTED
+    private fun lightMethod(name: String, declaration: KtDeclaration, forceStatic: Boolean): LightMethodBuilder {
+        val accessedProperty = if (declaration is KtPropertyAccessor) declaration.property else null
+        val outer = accessedProperty ?: declaration
+        return LightMethodBuilder(
+            manager, language, name,
+            LightParameterListBuilder(manager, language),
+            object : LightModifierList(manager, language) {
+                override fun hasModifierProperty(name: String): Boolean {
+                    if (name == PsiModifier.PUBLIC || name == PsiModifier.PROTECTED || name == PsiModifier.PRIVATE) {
+                        if (declaration.isPrivate() || accessedProperty?.isPrivate() == true) {
+                            return name == PsiModifier.PRIVATE
+                        }
+                        if (declaration.hasModifier(PROTECTED_KEYWORD) || accessedProperty?.hasModifier(PROTECTED_KEYWORD) == true) {
+                            return name == PsiModifier.PROTECTED
+                        }
 
-                    val overriding = decls.find { it.hasModifier(OVERRIDE_KEYWORD) }
-                    when ((overriding?.resolve() as? CallableDescriptor)?.effectiveVisibility()) {
-                        EffectiveVisibility.Public -> return name == PsiModifier.PUBLIC
-                        EffectiveVisibility.Private -> return name == PsiModifier.PRIVATE
-                        is EffectiveVisibility.Protected, is EffectiveVisibility.InternalProtected -> return name == PsiModifier.PROTECTED
+                        if (outer.hasModifier(OVERRIDE_KEYWORD)) {
+                            when ((outer.resolve() as? CallableDescriptor)?.effectiveVisibility()) {
+                                EffectiveVisibility.Public -> return name == PsiModifier.PUBLIC
+                                EffectiveVisibility.Private -> return name == PsiModifier.PRIVATE
+                                is EffectiveVisibility.Protected, is EffectiveVisibility.InternalProtected -> return name == PsiModifier.PROTECTED
+                            }
+                        }
+
+                        return name == PsiModifier.PUBLIC
                     }
 
-                    return name == PsiModifier.PUBLIC
+                    return when (name) {
+                        PsiModifier.FINAL -> !isInterface && outer !is KtConstructor<*> && isFinal(outer)
+                        PsiModifier.ABSTRACT -> isInterface || outer.hasModifier(ABSTRACT_KEYWORD)
+                        PsiModifier.STATIC -> forceStatic || isNamedObject() && isJvmStatic(outer)
+                        PsiModifier.STRICTFP -> declaration is KtFunction && declaration.hasAnnotation(STRICTFP_ANNOTATION_FQ_NAME)
+                        PsiModifier.SYNCHRONIZED -> declaration is KtFunction && declaration.hasAnnotation(SYNCHRONIZED_ANNOTATION_FQ_NAME)
+                        else -> false
+                    }
                 }
 
-                return when (name) {
-                    PsiModifier.FINAL -> !isInterface && decls.any { it !is KtConstructor<*> && isFinal(it) }
-                    PsiModifier.ABSTRACT -> isInterface || decls.any { it.hasModifier(ABSTRACT_KEYWORD) }
-                    PsiModifier.STATIC -> forceStatic || isNamedObject() && decls.any { isJvmStatic(it) }
-                    PsiModifier.STRICTFP -> decls.any { it is KtFunction && it.hasAnnotation(STRICTFP_ANNOTATION_FQ_NAME) }
-                    PsiModifier.SYNCHRONIZED -> decls.any { it is KtFunction && it.hasAnnotation(SYNCHRONIZED_ANNOTATION_FQ_NAME) }
-                    else -> false
-                }
+                fun KtDeclaration.isPrivate() =
+                    hasModifier(PRIVATE_KEYWORD) ||
+                            this is KtFunction && typeParameters.any { it.hasModifier(REIFIED_KEYWORD) }
             }
-
-            fun isPrivate(declaration: KtDeclaration) =
-                declaration.hasModifier(PRIVATE_KEYWORD) ||
-                        declaration is KtFunction && declaration.typeParameters.any { it.hasModifier(REIFIED_KEYWORD) }
-        }
-    ).setConstructor(decls.any { it is KtConstructor<*> || it is KtClassOrObject })
+        ).setConstructor(declaration is KtConstructor<*>)
+    }
 
     private fun mangleIfNeeded(declarations: List<KtDeclaration>, name: String): String {
         for (declaration in declarations) {
@@ -399,7 +408,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val support: Ult
         if (needsAccessor(ktGetter)) {
             val getterName = mangleIfNeeded(listOfNotNull(ktGetter, declaration), JvmAbi.getterName(propertyName))
             val getterType: PsiType by lazyPub { methodReturnType(declaration) }
-            val getterPrototype = lightMethod(getterName, listOfNotNull(declaration, ktGetter), onlyJvmStatic)
+            val getterPrototype = lightMethod(getterName, ktGetter ?: declaration, onlyJvmStatic)
                 .setMethodReturnType { getterType }
             val getterWrapper = KtUltraLightMethod(getterPrototype, declaration, support, this)
             addReceiverParameter(declaration, getterWrapper)
@@ -408,7 +417,7 @@ class KtUltraLightClass(classOrObject: KtClassOrObject, private val support: Ult
 
         if (mutable && needsAccessor(ktSetter)) {
             val setterName = mangleIfNeeded(listOfNotNull(ktSetter, declaration), JvmAbi.setterName(propertyName))
-            val setterPrototype = lightMethod(setterName, listOfNotNull(declaration, ktSetter), onlyJvmStatic)
+            val setterPrototype = lightMethod(setterName, ktSetter ?: declaration, onlyJvmStatic)
                 .setMethodReturnType(PsiType.VOID)
             val setterWrapper = KtUltraLightMethod(setterPrototype, declaration, support, this)
             addReceiverParameter(declaration, setterWrapper)
@@ -565,13 +574,7 @@ internal class KtUltraLightParameter(
     override val clsDelegate: PsiParameter
         get() = throw IllegalStateException("Cls delegate shouldn't be loaded for ultra-light PSI!")
 
-    private val lightModifierList by lazyPub {
-        object : KtLightSimpleModifierList(this, emptySet()) {
-            override fun computeAnnotations(): List<KtLightAbstractAnnotation> {
-                return super.computeAnnotations().filter { !it.fqNameMatches(JVM_STATIC_ANNOTATION_FQ_NAME.asString()) }
-            }
-        }
-    }
+    private val lightModifierList by lazyPub { KtLightSimpleModifierList(this, emptySet()) }
 
     override fun isVarArgs(): Boolean =
         kotlinOrigin is KtParameter && kotlinOrigin.isVarArg && method.parameterList.parameters.last() == this

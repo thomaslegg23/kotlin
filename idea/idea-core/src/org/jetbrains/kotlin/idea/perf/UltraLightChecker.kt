@@ -33,8 +33,8 @@ object UltraLightChecker {
             Assert.assertFalse(gold.javaClass.name.contains("Ultra"))
         }
 
-        val goldText = gold?.render().orEmpty()
-        val ultraText = ultraLightClass.render()
+        val goldText = gold?.renderClass().orEmpty()
+        val ultraText = ultraLightClass.renderClass()
 
         if (goldText != ultraText) {
             Assert.assertEquals(
@@ -45,54 +45,62 @@ object UltraLightChecker {
         return ultraLightClass
     }
 
-    private fun PsiClass.render(): String {
-        fun PsiAnnotation.renderAnnotation() =
-            "@" + qualifiedName + "(" + parameterList.attributes.joinToString { it.name + "=" + (it.value?.text ?: "?") } + ")"
+    private fun PsiAnnotation.renderAnnotation() =
+        "@" + qualifiedName + "(" + parameterList.attributes.joinToString { it.name + "=" + (it.value?.text ?: "?") } + ")"
 
-        fun PsiModifierListOwner.renderModifiers() =
-            annotations.joinToString("") { it.renderAnnotation() + (if (this is PsiParameter) " " else "\n") } +
-                    PsiModifier.MODIFIERS.filter(::hasModifierProperty).joinToString("") { "$it " }
-
-        fun PsiType.renderType() = getCanonicalText(true)
-
-        fun PsiReferenceList?.renderRefList(keyword: String): String {
-            if (this == null || this.referencedTypes.isEmpty()) return ""
-            return " " + keyword + " " + referencedTypes.joinToString { it.renderType() }
+    private fun PsiModifierListOwner.renderModifiers(): String {
+        val buffer = StringBuilder()
+        for (annotation in annotations) {
+            buffer.append(annotation.renderAnnotation())
+            buffer.append(if (this is PsiParameter) " " else "\n")
         }
-
-        fun PsiVariable.renderVar(): String {
-            var result = this.renderModifiers() + type.renderType() + " " + name
-            if (this is PsiParameter && this.isVarArgs) {
-                result += " /* vararg */"
-            }
-            computeConstantValue()?.let { result += " /* constant value $it */" }
-            return result
+        for (modifier in PsiModifier.MODIFIERS.filter(::hasModifierProperty)) {
+            buffer.append(modifier).append(" ")
         }
+        return buffer.toString()
+    }
 
-        fun PsiTypeParameterListOwner.renderTypeParams() =
-            if (typeParameters.isEmpty()) ""
-            else "<" + typeParameters.joinToString {
-                val bounds =
-                    if (it.extendsListTypes.isNotEmpty())
-                        " extends " + it.extendsListTypes.joinToString(" & ", transform = PsiClassType::renderType)
-                    else ""
-                it.name!! + bounds
-            } + "> "
+    private fun PsiType.renderType() = getCanonicalText(true)
 
-        fun PsiMethod.renderMethod() =
-            renderModifiers() +
-                    (if (isVarArgs) "/* vararg */ " else "") +
-                    renderTypeParams() +
-                    (returnType?.renderType() ?: "") + " " +
-                    name +
-                    "(" + parameterList.parameters.joinToString { it.renderModifiers() + it.type.renderType() } + ")" +
-                    (this as? PsiAnnotationMethod)?.defaultValue?.let { " default " + it.text }.orEmpty() +
-                    throwsList.referencedTypes.let { thrownTypes ->
-                        if (thrownTypes.isEmpty()) ""
-                        else " throws " + thrownTypes.joinToString { it.renderType() }
-                    } +
-                    ";"
+    private fun PsiReferenceList?.renderRefList(keyword: String): String {
+        if (this == null || this.referencedTypes.isEmpty()) return ""
+        return " " + keyword + " " + referencedTypes.joinToString { it.renderType() }
+    }
 
+    private fun PsiVariable.renderVar(): String {
+        var result = this.renderModifiers() + type.renderType() + " " + name
+        if (this is PsiParameter && this.isVarArgs) {
+            result += " /* vararg */"
+        }
+        computeConstantValue()?.let { result += " /* constant value $it */" }
+        return result
+    }
+
+    private fun PsiTypeParameterListOwner.renderTypeParams() =
+        if (typeParameters.isEmpty()) ""
+        else "<" + typeParameters.joinToString {
+            val bounds =
+                if (it.extendsListTypes.isNotEmpty())
+                    " extends " + it.extendsListTypes.joinToString(" & ", transform = { it.renderType() })
+                else ""
+            it.name!! + bounds
+        } + "> "
+
+    private fun PsiMethod.renderMethod() =
+        renderModifiers() +
+                (if (isVarArgs) "/* vararg */ " else "") +
+                renderTypeParams() +
+                (returnType?.renderType() ?: "") + " " +
+                name +
+                "(" + parameterList.parameters.joinToString { it.renderModifiers() + it.type.renderType() } + ")" +
+                (this as? PsiAnnotationMethod)?.defaultValue?.let { " default " + it.text }.orEmpty() +
+                throwsList.referencedTypes.let { thrownTypes ->
+                    if (thrownTypes.isEmpty()) ""
+                    else " throws " + thrownTypes.joinToString { it.renderType() }
+                } +
+                ";"
+
+    private fun PsiClass.renderClass(): String {
         val classWord = when {
             isAnnotationType -> "@interface"
             isInterface -> "interface"
