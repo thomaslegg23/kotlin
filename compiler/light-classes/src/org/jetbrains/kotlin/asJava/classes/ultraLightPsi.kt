@@ -562,7 +562,7 @@ internal class KtUltraLightParameter(
     override val kotlinOrigin: KtDeclaration,
     private val support: UltraLightSupport,
     method: KtLightMethod,
-    val receiver: KtTypeReference?
+    private val receiver: KtTypeReference?
 ) : org.jetbrains.kotlin.asJava.elements.LightParameter(
     name,
     PsiType.NULL,
@@ -583,7 +583,7 @@ internal class KtUltraLightParameter(
 
     override fun getNavigationElement(): PsiElement = kotlinOrigin
 
-    internal val kotlinType: KotlinType? by lazyPub {
+    private val kotlinType: KotlinType? by lazyPub {
         when {
             receiver != null -> (kotlinOrigin.resolve() as? CallableMemberDescriptor)?.extensionReceiverParameter?.type
             else -> kotlinOrigin.getKotlinType()
