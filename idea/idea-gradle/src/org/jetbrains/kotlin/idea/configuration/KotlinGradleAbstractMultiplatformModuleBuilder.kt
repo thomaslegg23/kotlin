@@ -59,7 +59,7 @@ abstract class KotlinGradleAbstractMultiplatformModuleBuilder(
         }
     }
 
-    override fun setupModule(module: Module) {
+    public override fun setupModule(module: Module) {
         try {
             module.gradleModuleBuilder = this
             super.setupModule(module)

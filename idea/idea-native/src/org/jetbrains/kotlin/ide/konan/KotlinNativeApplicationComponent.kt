@@ -16,8 +16,10 @@ class KotlinNativeApplicationComponent : ApplicationComponent {
     override fun getComponentName(): String = "KotlinNativeApplicationComponent"
 
     override fun initComponent() {
-        ApplicationManager.getApplication().runWriteAction {
-            FileTypeManager.getInstance().associateExtension(ArchiveFileType.INSTANCE, KLIB_FILE_EXTENSION)
+        if (!ApplicationManager.getApplication().isUnitTestMode) {
+            ApplicationManager.getApplication().runWriteAction {
+                FileTypeManager.getInstance().associateExtension(ArchiveFileType.INSTANCE, KLIB_FILE_EXTENSION)
+            }
         }
 
         // TODO: Move this to Kotlin/Native plugin for CLion and AppCode (see KT-26717):
