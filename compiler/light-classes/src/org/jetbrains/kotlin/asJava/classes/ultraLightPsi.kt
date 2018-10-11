@@ -615,6 +615,20 @@ internal class KtUltraLightParameter(
         return kotlinOrigin
     }
 
+    internal fun getTypeForNullability(): KotlinType? {
+        if (receiver != null) return kotlinType
+        if (kotlinOrigin is KtProperty) {
+            if (kotlinOrigin.setter?.hasModifier(PRIVATE_KEYWORD) == true) return null
+            return kotlinType
+        }
+        if (kotlinOrigin is KtParameter) {
+            if (kotlinOrigin.typeReference != null || kotlinOrigin.parent?.parent is KtPropertyAccessor) {
+                return kotlinType
+            }
+        }
+        return null
+    }
+
 }
 
 interface UltraLightSupport {

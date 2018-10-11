@@ -300,11 +300,7 @@ class KtLightNullabilityAnnotation(val member: KtLightElement<*, PsiModifierList
 
     private fun getTargetType(annotatedElement: PsiElement): KotlinType? {
         if (member is KtUltraLightParameter) {
-            if (member.receiver != null) return member.kotlinType
-            if (annotatedElement is KtProperty) {
-                if (annotatedElement.setter?.hasModifier(KtTokens.PRIVATE_KEYWORD) == true) return null
-                return member.kotlinType
-            }
+            return member.getTypeForNullability()
         }
 
         if (annotatedElement is KtTypeReference) {
