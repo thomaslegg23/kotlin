@@ -86,3 +86,13 @@ fun getNumberHashCode(obj: dynamic) = js("""
 """).unsafeCast<Int>()
 
 fun identityHashCode(obj: dynamic): Int = getObjectHashCode(obj)
+
+
+@JsName("captureStack")
+internal fun captureStack(instance: Throwable) {
+    if (js("Error").captureStackTrace) {
+        js("Error").captureStackTrace(instance, instance::class.js);
+    } else {
+        instance.asDynamic().stack = js("new Error()").stack;
+    }
+}
