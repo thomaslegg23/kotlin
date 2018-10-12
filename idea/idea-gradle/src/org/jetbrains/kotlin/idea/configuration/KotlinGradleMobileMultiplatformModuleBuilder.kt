@@ -48,7 +48,7 @@ class KotlinGradleMobileMultiplatformModuleBuilder :
         addRepositoriesDefinition("jcenter()")
     }
 
-    override fun createProjectSkeleton(module: Module, rootDir: VirtualFile) {
+    override fun createProjectSkeleton(rootDir: VirtualFile) {
         val appDir = rootDir.findChild(androidAppName)!!
         val src = appDir.createChildDirectory(this, "src")
 
