@@ -44,6 +44,8 @@ import com.intellij.testFramework.UsefulTestCase
 import com.intellij.util.containers.ContainerUtil
 import com.intellij.util.containers.ContainerUtilRt
 import junit.framework.TestCase
+import org.gradle.testkit.runner.GradleRunner
+import org.gradle.testkit.runner.TaskOutcome
 import org.gradle.util.GradleVersion
 import org.jetbrains.kotlin.ide.konan.gradle.KotlinGradleNativeMultiplatformModuleBuilder
 import org.jetbrains.kotlin.idea.codeInsight.gradle.AbstractModelBuilderTest
@@ -126,6 +128,7 @@ class GradleMultiplatformWizardAlternativeTests : ProjectWizardTestCase<Abstract
         println(StringUtil.convertLineSeparators(VfsUtilCore.loadText(buildScript)))
 
         doImportProject()
+        doTestProject()
     }
 
     @Throws(IOException::class)
@@ -223,6 +226,20 @@ class GradleMultiplatformWizardAlternativeTests : ProjectWizardTestCase<Abstract
         }
     }
 
+    private fun doTestProject() {
+        val taskName = "test"
+        val result = GradleRunner.create()
+            .withProjectDir(File(myProject.basePath))
+            .withArguments("--no-daemon")
+            .withArguments("--info", "--stacktrace", taskName)
+            // This applies classpath from pluginUnderTestMetadata
+            .withPluginClasspath()
+            // NB: this is necessary to apply actual plugin
+            .apply { withPluginClasspath(pluginClasspath) }
+            .build()
+        val outcome = result.task(taskName)?.outcome
+        assertEquals(TaskOutcome.SUCCESS, outcome)
+    }
 
     @Test
     fun testMobile() {

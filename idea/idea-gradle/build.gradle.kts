@@ -28,6 +28,7 @@ dependencies {
     testCompile(intellijPluginDep("gradle"))
     testCompileOnly(intellijPluginDep("Groovy"))
     testCompileOnly(intellijDep())
+    testCompile(gradleTestKit())
 
     testCompile(project(":idea:idea-native")) { isTransitive = false }
     testCompile(project(":idea:idea-gradle-native")) { isTransitive = false }
