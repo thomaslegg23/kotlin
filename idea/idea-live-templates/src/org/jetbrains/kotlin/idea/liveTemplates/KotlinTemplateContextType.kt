@@ -14,212 +14,173 @@
  * limitations under the License.
  */
 
-package org.jetbrains.kotlin.idea.liveTemplates;
+package org.jetbrains.kotlin.idea.liveTemplates
 
-import com.intellij.codeInsight.template.EverywhereContextType;
-import com.intellij.codeInsight.template.TemplateContextType;
-import com.intellij.lang.ASTNode;
-import com.intellij.psi.PsiComment;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiWhiteSpace;
-import com.intellij.psi.impl.source.tree.LeafPsiElement;
-import com.intellij.psi.tree.IElementType;
-import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.psi.util.PsiUtilCore;
-import org.jetbrains.annotations.NonNls;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.jetbrains.kotlin.KtNodeTypes;
-import org.jetbrains.kotlin.idea.KotlinLanguage;
-import org.jetbrains.kotlin.lexer.KtTokens;
-import org.jetbrains.kotlin.psi.*;
+import com.intellij.codeInsight.template.EverywhereContextType
+import com.intellij.codeInsight.template.TemplateContextType
+import com.intellij.psi.PsiComment
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiWhiteSpace
+import com.intellij.psi.impl.source.tree.LeafPsiElement
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.util.PsiUtilCore
+import org.jetbrains.annotations.NonNls
+import org.jetbrains.kotlin.idea.KotlinLanguage
+import org.jetbrains.kotlin.lexer.KtTokens
+import org.jetbrains.kotlin.psi.*
 
-public abstract class KotlinTemplateContextType extends TemplateContextType {
-    private KotlinTemplateContextType(
-            @NotNull @NonNls String id,
-            @NotNull String presentableName,
-            @Nullable java.lang.Class<? extends TemplateContextType> baseContextType
-    ) {
-        super(id, presentableName, baseContextType);
-    }
+abstract class KotlinTemplateContextType private constructor(
+    @NonNls id: String,
+    presentableName: String,
+    baseContextType: java.lang.Class<out TemplateContextType>?
+) : TemplateContextType(id, presentableName, baseContextType) {
 
-    @Override
-    public boolean isInContext(@NotNull PsiFile file, int offset) {
+    protected open val isCommentInContext: Boolean
+        get() = false
+
+    override fun isInContext(file: PsiFile, offset: Int): Boolean {
         if (!PsiUtilCore.getLanguageAtOffset(file, offset).isKindOf(KotlinLanguage.INSTANCE)) {
-            return false;
+            return false
         }
 
-        PsiElement element = file.findElementAt(offset);
+        var element = file.findElementAt(offset)
         if (element == null) {
-            element = file.findElementAt(offset - 1);
+            element = file.findElementAt(offset - 1)
         }
 
-        if (element instanceof PsiWhiteSpace) {
-            return false;
-        }
-        else if (PsiTreeUtil.getParentOfType(element, PsiComment.class, false) != null) {
-            return isCommentInContext();
-        }
-        else if (PsiTreeUtil.getParentOfType(element, KtPackageDirective.class) != null
-                || PsiTreeUtil.getParentOfType(element, KtImportDirective.class) != null) {
-            return false;
-        }
-        else if (element instanceof LeafPsiElement) {
-            IElementType elementType = ((LeafPsiElement) element).getElementType();
-            if (elementType == KtTokens.IDENTIFIER) {
-                PsiElement parent = element.getParent();
-                if (parent instanceof KtReferenceExpression) {
-                    PsiElement parentOfParent = parent.getParent();
-                    KtQualifiedExpression qualifiedExpression = PsiTreeUtil.getParentOfType(element, KtQualifiedExpression.class);
-                    if (qualifiedExpression != null && qualifiedExpression.getSelectorExpression() == parentOfParent) {
-                        return false;
+        if (element is PsiWhiteSpace) {
+            return false
+        } else if (PsiTreeUtil.getParentOfType(element, PsiComment::class.java, false) != null) {
+            return isCommentInContext
+        } else if (PsiTreeUtil.getParentOfType(element, KtPackageDirective::class.java) != null || PsiTreeUtil.getParentOfType(
+                element,
+                KtImportDirective::class.java
+            ) != null
+        ) {
+            return false
+        } else if (element is LeafPsiElement) {
+            val elementType = element.elementType
+            if (elementType === KtTokens.IDENTIFIER) {
+                val parent = element.parent
+                if (parent is KtReferenceExpression) {
+                    val parentOfParent = parent.getParent()
+                    val qualifiedExpression = PsiTreeUtil.getParentOfType(element, KtQualifiedExpression::class.java)
+                    if (qualifiedExpression != null && qualifiedExpression.selectorExpression === parentOfParent) {
+                        return false
                     }
                 }
             }
         }
 
-        return element != null && isInContext(element);
+        return element != null && isInContext(element)
     }
 
-    protected boolean isCommentInContext() {
-        return false;
-    }
+    protected abstract fun isInContext(element: PsiElement): Boolean
 
-    protected abstract boolean isInContext(@NotNull PsiElement element);
+    class Generic : KotlinTemplateContextType("KOTLIN", KotlinLanguage.NAME, EverywhereContextType::class.java) {
 
-    public static class Generic extends KotlinTemplateContextType {
-        public Generic() {
-            super("KOTLIN", KotlinLanguage.NAME, EverywhereContextType.class);
-        }
+        override val isCommentInContext: Boolean
+            get() = true
 
-        @Override
-        protected boolean isInContext(@NotNull PsiElement element) {
-            return true;
-        }
-
-        @Override
-        protected boolean isCommentInContext() {
-            return true;
+        override fun isInContext(element: PsiElement): Boolean {
+            return true
         }
     }
 
-    public static class TopLevel extends KotlinTemplateContextType {
-        public TopLevel() {
-            super("KOTLIN_TOPLEVEL", "Top-level", Generic.class);
-        }
+    class TopLevel : KotlinTemplateContextType("KOTLIN_TOPLEVEL", "Top-level", Generic::class.java) {
 
-        @Override
-        protected boolean isInContext(@NotNull PsiElement element) {
-            PsiElement e = element;
+        override fun isInContext(element: PsiElement): Boolean {
+            var e: PsiElement? = element
             while (e != null) {
-                if (e instanceof KtModifierList) {
+                if (e is KtModifierList) {
                     // skip property/function/class or object which is owner of modifier list
-                    e = e.getParent();
+                    e = e.parent
                     if (e != null) {
-                        e = e.getParent();
+                        e = e.parent
                     }
-                    continue;
+                    continue
                 }
-                if (e instanceof KtProperty || e instanceof KtNamedFunction || e instanceof KtClassOrObject) {
-                    return false;
+                if (e is KtProperty || e is KtNamedFunction || e is KtClassOrObject) {
+                    return false
                 }
-                if (e instanceof KtScriptInitializer) {
-                    return false;
+                if (e is KtScriptInitializer) {
+                    return false
                 }
-                e = e.getParent();
+                e = e.parent
             }
-            return true;
+            return true
         }
     }
 
-    public static class ObjectDeclaration extends KotlinTemplateContextType {
-        public ObjectDeclaration() {
-            super("KOTLIN_OBJECT_DECLARATION", "Object declaration", Generic.class);
-        }
+    class ObjectDeclaration : KotlinTemplateContextType("KOTLIN_OBJECT_DECLARATION", "Object declaration", Generic::class.java) {
 
-        @Override
-        protected boolean isInContext(@NotNull PsiElement element) {
-            KtObjectDeclaration objectDeclaration = getParentClassOrObject(element, KtObjectDeclaration.class);
-            return objectDeclaration != null && !objectDeclaration.isObjectLiteral();
+        override fun isInContext(element: PsiElement): Boolean {
+            val objectDeclaration = getParentClassOrObject(element, KtObjectDeclaration::class.java)
+            return objectDeclaration != null && !objectDeclaration.isObjectLiteral()
         }
     }
 
-    public static class Class extends KotlinTemplateContextType {
-        public Class() {
-            super("KOTLIN_CLASS", "Class", Generic.class);
-        }
+    class Class : KotlinTemplateContextType("KOTLIN_CLASS", "Class", Generic::class.java) {
 
-        @Override
-        protected boolean isInContext(@NotNull PsiElement element) {
-            return getParentClassOrObject(element, KtClassOrObject.class) != null;
+        override fun isInContext(element: PsiElement): Boolean {
+            return getParentClassOrObject(element, KtClassOrObject::class.java) != null
         }
     }
 
-    public static class Statement extends KotlinTemplateContextType {
-        public Statement() {
-            super("KOTLIN_STATEMENT", "Statement", Generic.class);
-        }
+    class Statement : KotlinTemplateContextType("KOTLIN_STATEMENT", "Statement", Generic::class.java) {
 
-        @Override
-        protected boolean isInContext(@NotNull PsiElement element) {
-            PsiElement parentStatement = PsiTreeUtil.findFirstParent(element, e ->
-                    e instanceof KtExpression && KtPsiUtil.isStatementContainer(e.getParent()));
-
-            if (parentStatement == null) return false;
+        override fun isInContext(element: PsiElement): Boolean {
+            val parentStatement =
+                PsiTreeUtil.findFirstParent(element) { e -> e is KtExpression && KtPsiUtil.isStatementContainer(e.getParent()) }
+                    ?: return false
 
             // We are in the leftmost position in parentStatement
-            return element.getTextOffset() == parentStatement.getTextOffset();
+            return element.textOffset == parentStatement.textOffset
         }
     }
 
-    public static class Expression extends KotlinTemplateContextType {
-        public Expression() {
-            super("KOTLIN_EXPRESSION", "Expression", Generic.class);
-        }
+    class Expression : KotlinTemplateContextType("KOTLIN_EXPRESSION", "Expression", Generic::class.java) {
 
-        @Override
-        protected boolean isInContext(@NotNull PsiElement element) {
-            return element.getParent() instanceof KtExpression && !(element.getParent() instanceof KtConstantExpression) &&
-                   !(element.getParent().getParent() instanceof KtDotQualifiedExpression)
-                   && !(element.getParent() instanceof KtParameter);
+        override fun isInContext(element: PsiElement): Boolean {
+            return (element.parent is KtExpression && element.parent !is KtConstantExpression &&
+                    element.parent.parent !is KtDotQualifiedExpression
+                    && element.parent !is KtParameter)
         }
     }
 
-    public static class Comment extends KotlinTemplateContextType {
-        public Comment() {
-            super("KOTLIN_COMMENT", "Comment", Generic.class);
-        }
+    class Comment : KotlinTemplateContextType("KOTLIN_COMMENT", "Comment", Generic::class.java) {
 
-        @Override
-        protected boolean isInContext(@NotNull PsiElement element) {
-            return false;
-        }
+        override val isCommentInContext: Boolean
+            get() = true
 
-        @Override
-        protected boolean isCommentInContext() {
-            return true;
+        override fun isInContext(element: PsiElement): Boolean {
+            return false
         }
     }
 
-    private static <T extends PsiElement> T getParentClassOrObject(@NotNull PsiElement element, @NotNull java.lang.Class<? extends T> klass) {
-        PsiElement e = element;
-        while (e != null && !klass.isInstance(e)) {
-            if (e instanceof KtModifierList) {
-                // skip property/function/class or object which is owner of modifier list
-                e = e.getParent();
-                if (e != null) {
-                    e = e.getParent();
+    companion object {
+
+        private fun <T : PsiElement> getParentClassOrObject(element: PsiElement, klass: java.lang.Class<out T>): T? {
+            var e: PsiElement? = element
+            while (e != null && !klass.isInstance(e)) {
+                if (e is KtModifierList) {
+                    // skip property/function/class or object which is owner of modifier list
+                    e = e.parent
+                    if (e != null) {
+                        e = e.parent
+                    }
+                    continue
                 }
-                continue;
+                if (e is KtProperty || e is KtNamedFunction) {
+                    return null
+                }
+                e = e.parent
             }
-            if (e instanceof KtProperty || e instanceof KtNamedFunction) {
-                return null;
-            }
-            e = e.getParent();
-        }
 
-        //noinspection unchecked
-        return (T) e;
+
+            @Suppress("UNCHECKED_CAST")
+            return e as? T
+        }
     }
 }
