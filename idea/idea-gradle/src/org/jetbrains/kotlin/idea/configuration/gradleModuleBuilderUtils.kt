@@ -15,13 +15,13 @@ import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiFile
 import com.intellij.psi.codeStyle.CodeStyleManager
 import org.jetbrains.kotlin.idea.refactoring.toPsiFile
 import org.jetbrains.kotlin.psi.UserDataProperty
 import org.jetbrains.plugins.gradle.frameworkSupport.GradleFrameworkSupportProvider
 import org.jetbrains.plugins.gradle.service.project.wizard.GradleModuleBuilder
 import org.jetbrains.plugins.gradle.util.GradleConstants
-import org.jetbrains.plugins.groovy.lang.psi.GroovyFile
 import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElementFactory
 import java.io.File
 
@@ -37,7 +37,7 @@ internal fun findSettingsGradleFile(module: Module): VirtualFile? {
             ?: module.project.baseDir.findChild(GradleConstants.SETTINGS_FILE_NAME)
 }
 
-class SettingsScriptBuilder(scriptFile: GroovyFile) {
+class SettingsScriptBuilder(scriptFile: PsiFile) {
     private val builder = StringBuilder(scriptFile.text)
 
     private fun findBlockBody(blockName: String, startFrom: Int = 0): Int {
@@ -119,7 +119,7 @@ internal fun updateSettingsScript(module: Module, updater: (SettingsScriptBuilde
     val storedSettingsBuilder = module.settingsScriptBuilder
     val settingsBuilder =
         storedSettingsBuilder
-                ?: (findSettingsGradleFile(module)?.toPsiFile(module.project) as? GroovyFile)?.let { SettingsScriptBuilder(it) }
+                ?: (findSettingsGradleFile(module)?.toPsiFile(module.project))?.let { SettingsScriptBuilder(it) }
                 ?: return
     if (storedSettingsBuilder == null) {
         module.settingsScriptBuilder = settingsBuilder
