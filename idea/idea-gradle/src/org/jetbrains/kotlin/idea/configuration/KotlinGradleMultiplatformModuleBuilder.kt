@@ -104,7 +104,13 @@ class KotlinGradleMultiplatformModuleBuilder : GradleModuleBuilder() {
         rootModule: Module,
         parentDir: VirtualFile?
     ) = setupChildModule(rootModule, parentDir, commonModuleName) { builder, sdk ->
-        GradleKotlinMPPCommonFrameworkSupportProvider().addSupport(builder, rootModule, sdk, specifyPluginVersionIfNeeded = true)
+        GradleKotlinMPPCommonFrameworkSupportProvider().addSupport(
+            builder,
+            rootModule,
+            sdk,
+            specifyPluginVersionIfNeeded = true,
+            explicitPluginVersion = null
+        )
     }
 
     private fun setupPlatformModule(
@@ -114,7 +120,13 @@ class KotlinGradleMultiplatformModuleBuilder : GradleModuleBuilder() {
         supportProvider: GradleKotlinFrameworkSupportProvider,
         sdk: Sdk? = null
     ) = setupChildModule(rootModule, parentDir, platformModuleName, sdk) { builder, finalSdk ->
-        supportProvider.addSupport(builder, rootModule, finalSdk, specifyPluginVersionIfNeeded = !commonModuleIsParent)
+        supportProvider.addSupport(
+            builder,
+            rootModule,
+            finalSdk,
+            specifyPluginVersionIfNeeded = !commonModuleIsParent,
+            explicitPluginVersion = null
+        )
         val dependency = commonModuleName ?: ""
         builder.addDependencyNotation("expectedBy project(\":$dependency\")")
     }
