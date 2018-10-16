@@ -18545,6 +18545,36 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
                     runTest("compiler/testData/codegen/box/reflection/call/inlineClasses/jvmStaticFunction.kt");
                 }
 
+                @TestMetadata("nonOverridingFunOfInlineClass.kt")
+                public void testNonOverridingFunOfInlineClass() throws Exception {
+                    runTest("compiler/testData/codegen/box/reflection/call/inlineClasses/nonOverridingFunOfInlineClass.kt");
+                }
+
+                @TestMetadata("nonOverridingValOfInlineClass.kt")
+                public void testNonOverridingValOfInlineClass() throws Exception {
+                    runTest("compiler/testData/codegen/box/reflection/call/inlineClasses/nonOverridingValOfInlineClass.kt");
+                }
+
+                @TestMetadata("nonOverridingVarOfInlineClass.kt")
+                public void testNonOverridingVarOfInlineClass() throws Exception {
+                    runTest("compiler/testData/codegen/box/reflection/call/inlineClasses/nonOverridingVarOfInlineClass.kt");
+                }
+
+                @TestMetadata("overridingFunOfInlineClass.kt")
+                public void testOverridingFunOfInlineClass() throws Exception {
+                    runTest("compiler/testData/codegen/box/reflection/call/inlineClasses/overridingFunOfInlineClass.kt");
+                }
+
+                @TestMetadata("overridingValOfInlineClass.kt")
+                public void testOverridingValOfInlineClass() throws Exception {
+                    runTest("compiler/testData/codegen/box/reflection/call/inlineClasses/overridingValOfInlineClass.kt");
+                }
+
+                @TestMetadata("overridingVarOfInlineClass.kt")
+                public void testOverridingVarOfInlineClass() throws Exception {
+                    runTest("compiler/testData/codegen/box/reflection/call/inlineClasses/overridingVarOfInlineClass.kt");
+                }
+
                 @TestMetadata("properties.kt")
                 public void testProperties() throws Exception {
                     runTest("compiler/testData/codegen/box/reflection/call/inlineClasses/properties.kt");
