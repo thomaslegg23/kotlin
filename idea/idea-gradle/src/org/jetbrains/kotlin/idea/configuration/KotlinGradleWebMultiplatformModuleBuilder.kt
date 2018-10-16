@@ -150,7 +150,7 @@ class KotlinGradleWebMultiplatformModuleBuilder : KotlinGradleAbstractMultiplatf
                 sourceSets {
                     $commonSourceName {
                         dependencies {
-                            implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
+                            implementation 'org.jetbrains.kotlin:kotlin-stdlib-xxx'
                         }
                     }
                     $commonTestName {
